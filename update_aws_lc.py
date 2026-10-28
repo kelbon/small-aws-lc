@@ -248,7 +248,9 @@ def main():
             patches = patch_files()
             for p in patches:
                 # applied before touching the destination: if a patch does not fit the new version, nothing is changed
-                if subprocess.run(["git", "-C", str(src), "apply", str(p)]).returncode != 0:
+                # autocrlf=false: otherwise git apply rewrites the whole file with CRLF on Windows
+                if subprocess.run(["git", "-C", str(src), "-c", "core.autocrlf=false", "apply",
+                                   str(p)]).returncode != 0:
                     sys.exit(f"error: {p.name} does not apply to AWS-LC {args.tag}, update the patch. "
                              f"'{dest}' is not changed")
             files = list(tree_files(src))
@@ -269,11 +271,13 @@ def main():
 
     readme = dest / "README.md"
     original = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    readme.write_text(readme_header(args.tag, commit, full_mb, slim_mb, patches) + original, encoding="utf-8")
+    # newline="\n": LF on any OS, as in upstream
+    with open(readme, "w", encoding="utf-8", newline="\n") as f:
+        f.write(readme_header(args.tag, commit, full_mb, slim_mb, patches) + original)
 
-    (dest / MARKER).write_text(json.dumps({"upstream": UPSTREAM_URL, "tag": args.tag, "commit": commit,
-                                           "patches": [p.name for p in patches]},
-                                          indent=2) + "\n", encoding="utf-8")
+    with open(dest / MARKER, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps({"upstream": UPSTREAM_URL, "tag": args.tag, "commit": commit,
+                            "patches": [p.name for p in patches]}, indent=2) + "\n")
     script = Path(__file__).resolve()
     if script != (dest / SCRIPT_NAME).resolve():
         shutil.copy2(script, dest / SCRIPT_NAME)
