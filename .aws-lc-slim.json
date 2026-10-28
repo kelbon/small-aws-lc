@@ -1,5 +1,8 @@
 {
   "upstream": "https://github.com/aws/aws-lc",
   "tag": "v5.12.0",
-  "commit": "cd481c207e38f06aeb5766f4a1cdfce10a4c0af8"
+  "commit": "cd481c207e38f06aeb5766f4a1cdfce10a4c0af8",
+  "patches": [
+    "0001-remove-werror.patch"
+  ]
 }

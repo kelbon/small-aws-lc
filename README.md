@@ -2,12 +2,17 @@
 
 This repository is [AWS-LC](https://github.com/aws/aws-lc) `v5.12.0` (commit `cd481c207e38f06aeb5766f4a1cdfce10a4c0af8`) with tests, test vectors,
 fuzzing corpora, documentation and tools removed. Only what is needed to build `libcrypto` and `libssl`
-with CMake is kept, which reduces the source tree from 306 MB to 51 MB. The repository has
+with CMake is kept, which reduces the source tree from 303 MB to 49 MB. The repository has
 a single branch, so cloning it does not download other branches or upstream history.
 
-All files are unmodified copies from upstream, nothing is added or changed except this README header,
-`update_aws_lc.py` and `.aws-lc-slim.json`. The file selection is based on the include list AWS uses to package AWS-LC
-for Rust (the `aws-lc-sys` crate), plus all license files.
+All other files are unmodified copies from upstream. Besides them only this README header, `update_aws_lc.py`,
+`patches/` and `.aws-lc-slim.json` are added. The file selection is based on the include list AWS uses to package
+AWS-LC for Rust (the `aws-lc-sys` crate), plus all license files.
+
+Changes to upstream are kept as patch files in `patches/` and applied by the update script, each patch describes the reason:
+
+- `patches/0001-remove-werror.patch`
+
 
 Configure with tests and tools disabled:
 

@@ -798,7 +798,7 @@ if(GCC OR CLANG)
       set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wno-c11-extensions")
     endif()
   endif()
-  set(C_CXX_FLAGS "${C_CXX_FLAGS} -Werror -Wformat=2 -Wsign-compare -Wmissing-field-initializers -Wwrite-strings")
+  set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wformat=2 -Wsign-compare -Wmissing-field-initializers -Wwrite-strings")
 
   # GCC 8.x added a warning called -Wcast-function-type to the -Wextra umbrella.
   # Also suppress for all clang versions supporting this warning.

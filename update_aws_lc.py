@@ -11,7 +11,8 @@ tag and push. The script refuses to clean a non-empty folder that it did not cre
 
 File selection is based on the include list AWS uses to package AWS-LC for Rust (Cargo.toml of
 the aws-lc-sys crate in https://github.com/aws/aws-lc-rs), plus all license files and README.md.
-Files are copied unmodified, only README.md gets a header.
+Files are copied unmodified, then the patches from the `patches` folder next to the script are applied (git apply,
+in name order) and README.md gets a header. If a patch does not apply, the destination is not touched.
 
 Requires Python 3.8+ and git. --check additionally requires CMake (and Ninja, if available).
 """
@@ -30,8 +31,9 @@ from pathlib import Path
 UPSTREAM_URL = "https://github.com/aws/aws-lc"
 MARKER = ".aws-lc-slim.json"
 SCRIPT_NAME = "update_aws_lc.py"
+PATCHES_DIR = "patches"
 # kept in the destination folder on update (everything else is replaced)
-KEEP = {".git", ".github", MARKER, SCRIPT_NAME}
+KEEP = {".git", ".github", ".gitattributes", MARKER, SCRIPT_NAME, PATCHES_DIR}
 
 # gitignore-like patterns relative to the AWS-LC root, the last matching pattern wins.
 # Taken from aws-lc-sys 0.46.0 Cargo.toml `include` (patterns for /aws-lc/, prefix removed)
@@ -174,7 +176,17 @@ def clean_destination(dest: Path):
             entry.unlink()
 
 
-def readme_header(tag: str, commit: str, full_mb: float, slim_mb: float) -> str:
+def patch_files() -> list:
+    folder = Path(__file__).resolve().parent / PATCHES_DIR
+    return sorted(folder.glob("*.patch")) if folder.is_dir() else []
+
+
+def readme_header(tag: str, commit: str, full_mb: float, slim_mb: float, patches: list) -> str:
+    if patches:
+        changes = (f"Changes to upstream are kept as patch files in `{PATCHES_DIR}/` and applied by the update script, "
+                   "each patch describes the reason:\n\n" + "".join(f"- `{PATCHES_DIR}/{p.name}`\n" for p in patches))
+    else:
+        changes = "There are no changes to upstream files.\n"
     return f"""# AWS-LC slim
 
 This repository is [AWS-LC]({UPSTREAM_URL}) `{tag}` (commit `{commit}`) with tests, test vectors,
@@ -182,9 +194,11 @@ fuzzing corpora, documentation and tools removed. Only what is needed to build `
 with CMake is kept, which reduces the source tree from {full_mb:.0f} MB to {slim_mb:.0f} MB. The repository has
 a single branch, so cloning it does not download other branches or upstream history.
 
-All files are unmodified copies from upstream, nothing is added or changed except this README header,
-`{SCRIPT_NAME}` and `{MARKER}`. The file selection is based on the include list AWS uses to package AWS-LC
-for Rust (the `aws-lc-sys` crate), plus all license files.
+All other files are unmodified copies from upstream. Besides them only this README header, `{SCRIPT_NAME}`,
+`{PATCHES_DIR}/`, `{MARKER}` and `.gitattributes` are added. The file selection is based on the include list AWS uses to package
+AWS-LC for Rust (the `aws-lc-sys` crate), plus all license files.
+
+{changes}
 
 Configure with tests and tools disabled:
 
@@ -225,15 +239,22 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "aws-lc"
         try:
-            run(["git", "clone", "--quiet", "--depth", "1", "--single-branch", "--branch", args.tag,
-                 UPSTREAM_URL, str(src)])
+            # no line ending conversion: files are copied exactly as in upstream on any OS
+            run(["git", "-c", "core.autocrlf=false", "clone", "--quiet", "--depth", "1", "--single-branch",
+                 "--branch", args.tag, UPSTREAM_URL, str(src)])
             commit = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"], check=True,
                                     capture_output=True, text=True).stdout.strip()
+            full_mb = size_mb(path for _, path in tree_files(src))
+            patches = patch_files()
+            for p in patches:
+                # applied before touching the destination: if a patch does not fit the new version, nothing is changed
+                if subprocess.run(["git", "-C", str(src), "apply", str(p)]).returncode != 0:
+                    sys.exit(f"error: {p.name} does not apply to AWS-LC {args.tag}, update the patch. "
+                             f"'{dest}' is not changed")
             files = list(tree_files(src))
             kept = [(rel, path) for rel, path in files if is_included(rel)]
             if not any(rel == "CMakeLists.txt" for rel, _ in kept):
                 sys.exit("error: CMakeLists.txt is not selected, the include list does not fit this AWS-LC version")
-            full_mb = size_mb(path for _, path in files)
             slim_mb = size_mb(path for _, path in kept)
 
             dest.mkdir(parents=True, exist_ok=True)
@@ -248,13 +269,20 @@ def main():
 
     readme = dest / "README.md"
     original = readme.read_text(encoding="utf-8") if readme.exists() else ""
-    readme.write_text(readme_header(args.tag, commit, full_mb, slim_mb) + original, encoding="utf-8")
+    readme.write_text(readme_header(args.tag, commit, full_mb, slim_mb, patches) + original, encoding="utf-8")
 
-    (dest / MARKER).write_text(json.dumps({"upstream": UPSTREAM_URL, "tag": args.tag, "commit": commit},
+    (dest / MARKER).write_text(json.dumps({"upstream": UPSTREAM_URL, "tag": args.tag, "commit": commit,
+                                           "patches": [p.name for p in patches]},
                                           indent=2) + "\n", encoding="utf-8")
     script = Path(__file__).resolve()
     if script != (dest / SCRIPT_NAME).resolve():
         shutil.copy2(script, dest / SCRIPT_NAME)
+        if (dest / PATCHES_DIR).exists():
+            rmtree(dest / PATCHES_DIR)
+        if patches:
+            (dest / PATCHES_DIR).mkdir()
+            for p in patches:
+                shutil.copy2(p, dest / PATCHES_DIR / p.name)
 
     print(f"AWS-LC {args.tag} ({commit}): {len(kept)} of {len(files)} files, "
           f"{slim_mb:.1f} MB instead of {full_mb:.1f} MB -> {dest}")
