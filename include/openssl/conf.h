@@ -100,7 +100,7 @@ OPENSSL_EXPORT OPENSSL_DEPRECATED char *CONF_get1_default_config_file(void);
 OPENSSL_EXPORT OPENSSL_DEPRECATED void CONF_modules_free(void);
 
 // CONF_modules_unload does nothing.
-OPENSSL_EXPORT OPENSSL_DEPRECATED void CONF_modules_unload(int all);
+OPENSSL_EXPORT void CONF_modules_unload(int all);
 
 // CONF_modules_finish does nothing.
 OPENSSL_EXPORT OPENSSL_DEPRECATED void CONF_modules_finish(void);

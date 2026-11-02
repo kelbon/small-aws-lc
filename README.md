@@ -12,6 +12,7 @@ AWS-LC for Rust (the `aws-lc-sys` crate), plus all license files.
 Changes to upstream are kept as patch files in `patches/` and applied by the update script, each patch describes the reason:
 
 - `patches/0001-remove-werror.patch`
+- `patches/0002-remove-deprecated-conf-modules-unload.patch`
 
 
 Configure with tests and tools disabled:
